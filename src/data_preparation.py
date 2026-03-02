@@ -1,34 +1,49 @@
 import pandas as pd
 
-# Load dataset
-df = pd.read_csv("data/raw/global_weather.csv")
+def clean_data():
+    print("📥 Loading Raw Dataset...")
+    df = pd.read_csv("data/raw/global_weather.csv")
 
-# Show first 5 rows
-print("First 5 rows:")
-print(df.head())
+    print(f"Original Shape: {df.shape}")
 
-# Show dataset info
-print("\nDataset Info:")
-print(df.info())
+    # Remove duplicates
+    df = df.drop_duplicates()
+    print(f"After Removing Duplicates: {df.shape}")
 
-# Check missing values
-print("\nMissing Values:")
-print(df.isnull().sum())
+    # Handle missing values
+    missing_before = df.isnull().sum().sum()
+    print(f"Total Missing Values Before Cleaning: {missing_before}")
 
-# Remove duplicates
-df = df.drop_duplicates()
+    critical_columns = ["country", "temperature_celsius", "last_updated"]
+    df = df.dropna(subset=critical_columns)
 
-# Fill missing values
-df = df.ffill()
+    numeric_cols = df.select_dtypes(include=["float64", "int64"]).columns
+    for col in numeric_cols:
+        df[col] = df[col].fillna(df[col].median())
 
-# Convert date column properly
-df["last_updated"] = pd.to_datetime(df["last_updated"])
+    missing_after = df.isnull().sum().sum()
+    print(f"Total Missing Values After Cleaning: {missing_after}")
 
-# Create average temperature per country
-country_avg = df.groupby("country")["temperature_celsius"].mean().reset_index()
-country_avg.to_csv("data/processed/country_avg_temperature.csv", index=False)
+    # Convert date column
+    df["last_updated"] = pd.to_datetime(df["last_updated"], errors="coerce")
+    df = df.dropna(subset=["last_updated"])
 
-# Save cleaned dataset
-df.to_csv("data/processed/weather_clean.csv", index=False)
+    # Standardize country names
+    df["country"] = df["country"].str.strip()
 
-print("\nData cleaning completed successfully!")
+    # Basic range filtering
+    if "temperature_celsius" in df.columns:
+        df = df[df["temperature_celsius"].between(-50, 60)]
+
+    if "humidity" in df.columns:
+        df = df[df["humidity"].between(0, 100)]
+
+    if "wind_kph" in df.columns:
+        df = df[df["wind_kph"] >= 0]
+
+    print(f"Final Cleaned Shape: {df.shape}")
+
+    df.to_csv("data/processed/weather_clean.csv", index=False)
+    print("✅ Cleaned dataset saved to data/processed/weather_clean.csv")
+
+    return df
